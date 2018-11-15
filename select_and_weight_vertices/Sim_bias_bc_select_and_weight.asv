@@ -1,0 +1,249 @@
+% check if selecting and weighting the vertices you use for your analyses
+% biases the laminar profiles
+
+% TO DO
+% - need to add a cross validation option to see that the u-shaped effect then
+% disappears because it is due to double-dipping
+% - add a proper color scale
+
+%%
+clear 
+clc
+
+% FileName = 'Sim_select_weight.tif';
+
+nb_layers = 3;
+nb_sess = 2;
+nb_vertices = 2000;
+
+layer_2_plot = 3;
+session_2_plot = 1;
+
+% Signal across layers
+% Mu_cdt_1 = zeros(1,NbLayers);
+% Mu_cdt_1 = -1*(1:NbLayers)/NbLayers;
+% Mu_cdt_1 = [0.6970   0.6426   0.8655   1.1374   1.4821   1.8846]; % taken from empirical values
+mu_cdt_1 = [0.6970   1.0014   1.8846];
+mu_cdt_2 = mu_cdt_1 / 2 ;
+
+% Covariance matrix across layers
+% A=[1 1.5 2 2 1.5 1];
+% Sigma_noise = A'*A;
+% Sigma_noise = [...
+%     2.6485    1.9059    1.0569    0.5610    0.3431    0.3011;...
+%     1.9059    2.6827    2.1034    1.1775    0.5344    0.3486;...
+%     1.0569    2.1034    2.8142    2.2895    1.1996    0.5430;...
+%     0.5610    1.1775    2.2895    2.9694    2.3133    1.1270;...
+%     0.3431    0.5344    1.1996    2.3133    2.9294    2.1847;...
+%     0.3011    0.3486    0.5430    1.1270    2.1847    3.0297]; % taken from empirical values
+sigma_noise = [...
+    2.6485        0.8090        0.3011;...
+    0.8090        2.5907        0.8350;...
+    0.3011        0.8350        3.0297]; %
+
+
+%% Generate data
+for iSess=1:nb_sess
+    % data for vertices 1 : that respond stronger to cdt 1 than 2
+    vert_1(:, :, iSess, 1) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 1
+    vert_1(:, :, iSess, 2) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 2
+    
+    % data for vertices 2 : that respond stronger to cdt 2 than 1
+    vert_2(:, :, iSess, 1) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 1
+    vert_2(:, :, iSess, 2) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 1
+end
+
+
+%% plot responses of one group of vertices to both stimuli
+
+close all
+figure('name', ['response layer ' num2str(layer_2_plot) ' - vertices 1'])
+hist(...
+    cat(2, ...
+    vert_1(:, layer_2_plot, session_2_plot, 1), ...
+    vert_1(:, layer_2_plot, session_2_plot, 2)), 25)
+xlabel('activity')
+legend(...
+    {'vertices prefering cdt 1: resp to cdt 1', ...
+    'vertices prefering cdt 1: resp to cdt 2'})
+
+
+%% Contrast conditions and plot
+con_vert_1 = diff(vert_1, 1, 4); % cdt 2 - cdt 1
+con_vert_2 = diff(vert_2, 1, 4);
+
+close all
+figure('name', ...
+    ['contrast response layer ' num2str(layer_2_plot) ' - vertices 1 & 2'])
+hist(cat(2, ...
+    con_vert_1(:, layer_2_plot, session_2_plot), ...
+    con_vert_2(:, layer_2_plot, session_2_plot)),  25)
+xlabel('activity')
+legend(...
+    {'vertices prefering cdt 1: [cdt 2 - cdt 1]', ...
+    'vertices prefering cdt 2: [cdt 2 - cdt 1]'})
+
+
+%% Select based on average across layers
+% take X top and bottom percent
+X = 5;
+top_perc = 1:X/100*nb_vertices*2;
+bottom_perc = (nb_vertices*2-X/100*nb_vertices*2):nb_vertices*2;
+
+% vector to know which row is for which type of vertex
+vert_vect = [ones(nb_vertices, 1) ; 2*ones(nb_vertices, 1)]; 
+
+vert = [vert_1 ; vert_2]; % concat original response
+con_vert = [con_vert_1 ; con_vert_2]; % concat contrasts
+
+mean_con_vert = mean(mean(con_vert,3), 2); % mean across layers and sessions
+
+[B,Idx] = sort(mean_con_vert);
+sort_vert_vect = vert_vect(Idx);
+sort_vert = vert(Idx, :, :, :);
+
+% only keep the top and bottom X percent
+vert_vect_top_bottom = [sort_vert(top_perc,:,:,:) ; sort_vert(bottom_perc,:,:,:)];
+sort_vert_vect_top_bottom = [sort_vert_vect(top_perc) ; sort_vert_vect(bottom_perc)];
+
+% compute (prefered - not preferred) for vertices preferring condition 2
+profiles_2 = diff(...
+    vert_vect_top_bottom(sort_vert_vect_top_bottom==2, :, :, :), ...
+    1, 4);
+% compute (prefered - not preferred) for vertices preferring condition 1
+profiles_1 = vert_vect_top_bottom(sort_vert_vect_top_bottom==1, :, :, 1) - ...
+                vert_vect_top_bottom(sort_vert_vect_top_bottom==1, :, :, 2);
+
+
+profiles =  cat(1, profiles_1, profiles_2);
+mean_profiles = mean(mean(profiles,3)); % mean across sessions and vertices
+std_profiles = std(mean(profiles,3)); % std across sessions and vertices
+            
+% % figure('name', 'laminar profiles')
+% Mean_vert_1 = mean( mean(Con_Vert_minmax(vert_vect_minmax==1, :, :), 3), 1);
+% Mean_vert_2 = mean( mean(Con_Vert_minmax(vert_vect_minmax==2, :, :), 3), 1);
+% % plot()
+
+
+
+return
+
+%% laminar GLM
+% design matrix of the laminar GLM
+DesMat = (1:NbLayers)-mean(1:NbLayers);
+DesMat = [ones(NbLayers,1) DesMat' (DesMat.^2)'];
+DesMat = spm_orth(DesMat);
+
+% Change or adapt dimensions for GLM
+X=repmat(DesMat,size(Dist,3),1);
+
+Y = shiftdim(Dist,1);
+Y = reshape(Y, [size(Y,1)*size(Y,2), size(Y,3)] );
+
+B = pinv(X)*Y;
+
+
+%% Sort by the constant
+[~,I] = sort( B(1, :) );
+
+Dist_sorted = Dist(I, :, :); 
+
+MeanProfiles = mean(Dist_sorted, 3);
+
+
+%% Plot an animated GIF
+close all
+
+% Color map
+X = 0:0.001:1;
+
+R = 0.237 - 2.13*X + 26.92*X.^2 - 65.5*X.^3 + 63.5*X.^4 - 22.36*X.^5;
+G = ((0.572 + 1.524*X - 1.811*X.^2)./(1 - 0.291*X + 0.1574*X.^2)).^2;
+B = 1./(1.579 - 4.03*X + 12.92*X.^2 - 31.4*X.^3 + 48.6*X.^4 - 23.36*X.^5);
+ColorMap1 = [R' G' B'];
+
+nMax = 20;
+
+Splits = floor(linspace(1,size(Dist,1),nMax+1));
+
+for n=1:nMax
+    
+    h = figure('name', ' ', 'Position', [100, 100, 1500, 1000]);
+    
+    subplot(3,2,1)
+    colormap(ColorMap1)
+    COV = cov(MeanProfiles);
+    imagesc(COV, [-1*max(abs(COV(:))) max(abs(COV(:)))])
+    axis('square')
+    set(gca,'tickdir', 'out', 'xtick', 1:NbLayers , 'xticklabel',1:NbLayers, ...
+        'ytick', 1:NbLayers , 'yticklabel',1:NbLayers, 'ticklength', [0.01 0.01], 'fontsize', 12)
+    t=title('var-cov mat');
+    set(t,'fontsize',12);
+    t=xlabel('layer');
+    set(t,'fontsize',12);
+    t=ylabel('layer');
+    set(t,'fontsize',12);
+    colorbar
+    
+    
+    subplot(3,2,2)
+    distributionPlot(DistToPlot, 'xValues', 1:NbLayers, 'color', 'k', ...
+        'distWidth', 0.8, 'showMM', 1, 'globalNorm', 2, 'histOpt', 1.1)
+    set(gca,'tickdir', 'out', 'xtick', 1:NbLayers , ...
+        'xticklabel',1:NbLayers, 'ytick', -100:2.5:100 , ...
+        'yticklabel',-100:2.5:100, ...
+        'ticklength', [0.01 0.01], 'fontsize', 12)
+    axis([0 NbLayers+.5 -15 10])
+    
+    grid on
+    
+    t=title('Data dist');
+    set(t,'fontsize',12);
+    t=xlabel('layer');
+    set(t,'fontsize',12);
+    
+    
+    subplot(3,2,3:6)
+    colormap(ColorMap1)
+    imagesc(flipud(MeanProfiles))
+    axis([0.5 6.5 0 size(Dist,1)])
+    
+    set(gca,'tickdir', 'out', 'xtick', 1:NbLayers,'xticklabel', 1:NbLayers, ...
+        'ytick', [],'yticklabel', [], ...
+        'ticklength', [0.01 0], 'fontsize', 10)
+    
+    
+    tmp = axis;
+    rec=rectangle('Position', [tmp(1) Splits(end-n) tmp(2)-tmp(1) Splits(end)-Splits(end-1)]);
+    set(rec,'linewidth',2, 'EdgeColor', 'r')
+    
+    
+    ax = gca;
+    axes('Position',ax.Position);
+    hold on
+    
+    plot(1:NbLayers,mean(MeanProfiles(Splits(n):Splits(n+1),:)),...
+        'k', 'linewidth', 2)
+    plot([1 6],[0 0], '--k')
+    axis([0.5 6.5 -8 8])
+ 
+    set(gca,'color', 'none', 'tickdir', 'out', 'xtick', 1:NbLayers,'xticklabel',  1:NbLayers, ...
+        'YAxisLocation','right', 'ytick', -8:2:8,'yticklabel', -8:2:8, ...
+        'ticklength', [0.01 0], 'fontsize', 10)
+    
+    
+    pause(0.2) % to have the time to save the figure
+    
+    frame = getframe(h);
+    im = frame2im(frame);
+    [imind,cm] = rgb2ind(im,256);
+    
+    if n == 1
+        imwrite(imind,cm,FileName,'gif', 'Loopcount',inf);
+    else
+        imwrite(imind,cm,FileName,'gif','WriteMode','append');
+    end
+    
+    close all
+    
+end
