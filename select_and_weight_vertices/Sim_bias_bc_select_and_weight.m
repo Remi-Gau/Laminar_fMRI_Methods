@@ -1,23 +1,30 @@
 % check if selecting and weighting the vertices you use for your analyses
 % biases the laminar profiles
 
-% TO DO
-% - need to add a cross validation option to see that the u-shaped effect then
-% disappears because it is due to double-dipping
-% - add a proper color scale
 
 %%
-clear 
+clear
 clc
-
-% FileName = 'Sim_select_weight.tif';
+close all
 
 nb_layers = 3;
-nb_sess = 2;
-nb_vertices = 2000;
+nb_sess = 4;
+nb_subj = 21;
+nb_sim = 2;
+nb_vertices = 1000; % number of vertices in each group (preferring to respond to cdt 1 or 2)
 
+% for plotting
+plot_fig = 0;
 layer_2_plot = 3;
 session_2_plot = 1;
+
+%number of top and bottom verices to take
+take_top_bottom = 500;
+top_perc = 1:take_top_bottom;
+bottom_perc = (nb_vertices*2-(take_top_bottom-1)):nb_vertices*2;
+
+% vector to know which row is for which type of vertex
+vert_vect = [ones(nb_vertices, 1) ; 2*ones(nb_vertices, 1)];
 
 % Signal across layers
 % Mu_cdt_1 = zeros(1,NbLayers);
@@ -41,87 +48,140 @@ sigma_noise = [...
     0.8090        2.5907        0.8350;...
     0.3011        0.8350        3.0297]; %
 
-
-%% Generate data
-for iSess=1:nb_sess
-    % data for vertices 1 : that respond stronger to cdt 1 than 2
-    vert_1(:, :, iSess, 1) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 1
-    vert_1(:, :, iSess, 2) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 2
+for iSim = 1:nb_sim
     
-    % data for vertices 2 : that respond stronger to cdt 2 than 1
-    vert_2(:, :, iSess, 1) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 1
-    vert_2(:, :, iSess, 2) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 1
+    for iSubj = 1:nb_subj
+        
+        
+        %% Generate data
+        for iSess=1:nb_sess
+            % data for vertices 1 : that respond stronger to cdt 1 than 2
+            vert_1(:, :, iSess, 1) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %#ok<*SAGROW> %Cdt 1
+            vert_1(:, :, iSess, 2) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 2
+            
+            % data for vertices 2 : that respond stronger to cdt 2 than 1
+            vert_2(:, :, iSess, 1) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 1
+            vert_2(:, :, iSess, 2) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 2
+        end
+        
+        
+        %% plot responses of one group of vertices to both stimuli
+        if plot_fig
+            figure('name', ['response layer ' num2str(layer_2_plot) ' - vertices 1']) %#ok<*UNRCH>
+            hist(...
+                cat(2, ...
+                vert_1(:, layer_2_plot, session_2_plot, 1), ...
+                vert_1(:, layer_2_plot, session_2_plot, 2)), 25)
+            xlabel('activity')
+            legend(...
+                {'vertices prefering cdt 1: resp to cdt 1', ...
+                'vertices prefering cdt 1: resp to cdt 2'})
+        end
+        
+        %% Contrast conditions and plot
+        con_vert_1 = diff(vert_1, 1, 4); % cdt 2 - cdt 1
+        con_vert_2 = diff(vert_2, 1, 4);
+        
+        if plot_fig
+            figure('name', ...
+                ['contrast response layer ' num2str(layer_2_plot) ' - vertices 1 & 2'])
+            hist(cat(2, ...
+                con_vert_1(:, layer_2_plot, session_2_plot), ...
+                con_vert_2(:, layer_2_plot, session_2_plot)),  25)
+            xlabel('activity')
+            legend(...
+                {'vertices prefering cdt 1: [cdt 2 - cdt 1]', ...
+                'vertices prefering cdt 2: [cdt 2 - cdt 1]'})
+        end
+        
+        %% Select based on average across layers
+        vert = [vert_1 ; vert_2]; % concat original response
+        con_vert = [con_vert_1 ; con_vert_2]; % concat contrasts
+        
+        mean_layers = squeeze(mean(con_vert, 2)); % mean across layers
+        tval_con_vert = mean(mean_layers, 2) ./ (std(mean_layers, 0, 2) / size(mean_layers, 2)); % t-value across sessions
+        
+        [sorted_tval,Idx] = sort(tval_con_vert);
+        sort_vert_vect = vert_vect(Idx);
+        sort_vert = vert(Idx, :, :, :);
+        
+        % only keep the top and bottom X percent
+        vert_vect_top_bottom = [sort_vert(top_perc,:,:,:) ; sort_vert(bottom_perc,:,:,:)];
+        sort_vert_vect_top_bottom = [sort_vert_vect(top_perc) ; sort_vert_vect(bottom_perc)];
+        
+        mean_profiles(iSubj,:) = compute_profile_plot(...
+            vert_vect_top_bottom, ...
+            sort_vert_vect_top_bottom, ...
+            plot_fig);
+        
+        if plot_fig
+            title('stim selectivity after selection: preferred - non-preferred');
+        end
+        
+        
+        %% now add weighting factor and replot
+        
+        weight_top_bottom = [sorted_tval(top_perc,:,:,:) ; sorted_tval(bottom_perc,:,:,:)];
+        nb_repeats = size(vert_vect_top_bottom);
+        
+        weight_top_bottom = repmat(weight_top_bottom, [1 nb_repeats(2:end)]); %weight by t-values
+        
+        weight_vert_vect_top_bottom = weight_top_bottom.*vert_vect_top_bottom;
+        
+        weighted_mean_profiles(iSubj,:) = compute_profile_plot(...
+            weight_vert_vect_top_bottom, ...
+            sort_vert_vect_top_bottom, ...
+            plot_fig);
+        
+        if plot_fig
+            title('stim selectivity after selection and weighting: preferred - non-preferred');
+        end
+        
+    end
+    
+    
+    
+    %% group results
+    close all
+    
+    if plot_fig
+        figure('name', 'laminar profiles', 'position', [50 50 1200 600])
+        
+        subplot(1,2,1)
+        plot_profile(mean_profiles,0)
+        title('stim selectivity after selection: preferred - non-preferred')
+        
+        subplot(1,2,2)
+        plot_profile(weighted_mean_profiles,0)
+        title('stim selectivity after selection and weighting: preferred - non-preferred')
+    end
+    
+    [~,P_1(iSim)] = ttest(mean_profiles(:,1), mean_profiles(:,2));
+    [~,P_2(iSim)] = ttest(mean_profiles(:,2), mean_profiles(:,3));
+    
+    
+    [~,P_w_1(iSim)] = ttest(weighted_mean_profiles(:,1), weighted_mean_profiles(:,2));
+    [~,P_w_2(iSim)] = ttest(weighted_mean_profiles(:,2), weighted_mean_profiles(:,3));
+    
+    
 end
 
+%%
+figure('name', 'p curve', 'Position', [50 50 1200 600], 'Color', [1 1 1]);
 
-%% plot responses of one group of vertices to both stimuli
+subplot(2,2,1)
+plot_p_curve(P_1)
+title('p-curve: paired t-test layer 1 & 2')
 
-close all
-figure('name', ['response layer ' num2str(layer_2_plot) ' - vertices 1'])
-hist(...
-    cat(2, ...
-    vert_1(:, layer_2_plot, session_2_plot, 1), ...
-    vert_1(:, layer_2_plot, session_2_plot, 2)), 25)
-xlabel('activity')
-legend(...
-    {'vertices prefering cdt 1: resp to cdt 1', ...
-    'vertices prefering cdt 1: resp to cdt 2'})
+subplot(2,2,2)
+plot_p_curve(P_2)
+title('p-curve: paired t-test layer 2 & 3')
 
+subplot(2,2,3)
+plot_p_curve(P_w_1)
+title('p-curve: weightedpaired t-test layer 1 & 2')
 
-%% Contrast conditions and plot
-con_vert_1 = diff(vert_1, 1, 4); % cdt 2 - cdt 1
-con_vert_2 = diff(vert_2, 1, 4);
+subplot(2,2,4)
+plot_p_curve(P_w_2)
+title('p-curve: paired t-test layer 2 & 3')
 
-close all
-figure('name', ...
-    ['contrast response layer ' num2str(layer_2_plot) ' - vertices 1 & 2'])
-hist(cat(2, ...
-    con_vert_1(:, layer_2_plot, session_2_plot), ...
-    con_vert_2(:, layer_2_plot, session_2_plot)),  25)
-xlabel('activity')
-legend(...
-    {'vertices prefering cdt 1: [cdt 2 - cdt 1]', ...
-    'vertices prefering cdt 2: [cdt 2 - cdt 1]'})
-
-
-%% Select based on average across layers
-% take X top and bottom percent
-X = 5;
-top_perc = 1:X/100*nb_vertices*2;
-bottom_perc = (nb_vertices*2-X/100*nb_vertices*2):nb_vertices*2;
-
-% vector to know which row is for which type of vertex
-vert_vect = [ones(nb_vertices, 1) ; 2*ones(nb_vertices, 1)]; 
-
-vert = [vert_1 ; vert_2]; % concat original response
-con_vert = [con_vert_1 ; con_vert_2]; % concat contrasts
-
-mean_con_vert = mean(mean(con_vert,3), 2); % mean across layers and sessions
-
-[B,Idx] = sort(mean_con_vert);
-sort_vert_vect = vert_vect(Idx);
-sort_vert = vert(Idx, :, :, :);
-
-% only keep the top and bottom X percent
-vert_vect_top_bottom = [sort_vert(top_perc,:,:,:) ; sort_vert(bottom_perc,:,:,:)];
-sort_vert_vect_top_bottom = [sort_vert_vect(top_perc) ; sort_vert_vect(bottom_perc)];
-
-% compute (prefered - not preferred) for vertices preferring condition 2
-profiles_2 = diff(...
-    vert_vect_top_bottom(sort_vert_vect_top_bottom==2, :, :, :), ...
-    1, 4);
-% compute (prefered - not preferred) for vertices preferring condition 1
-profiles_1 = vert_vect_top_bottom(sort_vert_vect_top_bottom==1, :, :, 1) - ...
-                vert_vect_top_bottom(sort_vert_vect_top_bottom==1, :, :, 2);
-
-
-profiles =  cat(1, profiles_1, profiles_2);
-mean_profiles = mean(mean(profiles,3)); % mean across sessions and vertices
-std_profiles = std(mean(profiles,3)); % std across vertices of mean across sessions
-            
-figure('name', 'laminar profiles')
-errorbar(1:nb_layers, mean_profiles, std_profiles)
-
-
-
-return
