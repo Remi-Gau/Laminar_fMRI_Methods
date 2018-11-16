@@ -1,4 +1,4 @@
-% check if selecting and weighting the vertices you use for your analyses
+% check if selecting and weighting the voxels you use for your analyses
 % biases the laminar profiles
 
 
@@ -54,15 +54,7 @@ for iSim = 1:nb_sim
         
         
         %% Generate data
-        for iSess=1:nb_sess
-            % data for vertices 1 : that respond stronger to cdt 1 than 2
-            vert_1(:, :, iSess, 1) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %#ok<*SAGROW> %Cdt 1
-            vert_1(:, :, iSess, 2) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 2
-            
-            % data for vertices 2 : that respond stronger to cdt 2 than 1
-            vert_2(:, :, iSess, 1) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 1
-            vert_2(:, :, iSess, 2) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 2
-        end
+        [vert_1, vert_2] = generate_data(nb_sess, mu_cdt_1, mu_cdt_2, sigma_noise, nb_vertices);
         
         
         %% plot responses of one group of vertices to both stimuli
@@ -98,8 +90,7 @@ for iSim = 1:nb_sim
         vert = [vert_1 ; vert_2]; % concat original response
         con_vert = [con_vert_1 ; con_vert_2]; % concat contrasts
         
-        mean_layers = squeeze(mean(con_vert, 2)); % mean across layers
-        tval_con_vert = mean(mean_layers, 2) ./ (std(mean_layers, 0, 2) / size(mean_layers, 2)); % t-value across sessions
+        tval_con_vert = mean(con_vert, 3) ./ (std(con_vert, 0, 3) / size(mean_layers, 3)); % t-value across sessions
         
         [sorted_tval,Idx] = sort(tval_con_vert);
         sort_vert_vect = vert_vect(Idx);
@@ -169,27 +160,31 @@ for iSim = 1:nb_sim
     
 end
 
-%%
+%% plot profiles over simulations
 figure('name', 'laminar profiles', 'position', [50 50 1200 600])
 subplot(1,2,1)
-plot_profile(mean_profiles,0)
-        title('stim selectivity after selection: preferred - non-preferred')
+plot_profile(sim_profiles(:,:,1),1)
+title('stim selectivity after selection: preferred - non-preferred')
+
+subplot(1,2,2)
+plot_profile(sim_profiles(:,:,2),1)
+title('stim selectivity after selection and weighting: preferred - non-preferred')
+
 
 figure('name', 'p curve', 'Position', [50 50 1200 600], 'Color', [1 1 1]);
-
 subplot(2,2,1)
 plot_p_curve(P_1)
-title('p-curve: paired t-test layer 1 & 2')
+title('selected: p-curve (paired t-test layer 1 & 2)')
 
 subplot(2,2,2)
 plot_p_curve(P_2)
-title('p-curve: paired t-test layer 2 & 3')
+title('selected: p-curve (paired t-test layer 2 & 3)')
 
 subplot(2,2,3)
 plot_p_curve(P_w_1)
-title('p-curve: weightedpaired t-test layer 1 & 2')
+title('selected+weighted: p-curve (paired t-test layer 1 & 2)')
 
 subplot(2,2,4)
 plot_p_curve(P_w_2)
-title('p-curve: paired t-test layer 2 & 3')
+title('selected+weighted: p-curve (paired t-test layer 2 & 3)')
 

@@ -10,7 +10,7 @@ close all
 nb_layers = 3;
 nb_sess = 4;
 nb_subj = 21;
-nb_sim = 2;
+nb_sim = 1000;
 nb_vertices = 1000; % number of vertices in each group (preferring to respond to cdt 1 or 2)
 
 % for plotting
@@ -54,17 +54,9 @@ for iSim = 1:nb_sim
         
         
         %% Generate data
-        for iSess=1:nb_sess
-            % data for vertices 1 : that respond stronger to cdt 1 than 2
-            vert_1(:, :, iSess, 1) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %#ok<*SAGROW> %Cdt 1
-            vert_1(:, :, iSess, 2) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 2
-            
-            % data for vertices 2 : that respond stronger to cdt 2 than 1
-            vert_2(:, :, iSess, 1) = mvnrnd(mu_cdt_2, sigma_noise, nb_vertices); %Cdt 1
-            vert_2(:, :, iSess, 2) = mvnrnd(mu_cdt_1, sigma_noise, nb_vertices); %Cdt 2
-        end
+        [vert_1, vert_2] = generate_data(nb_sess, mu_cdt_1, mu_cdt_2, sigma_noise, nb_vertices);
         
-        
+
         %% plot responses of one group of vertices to both stimuli
         if plot_fig
             figure('name', ['response layer ' num2str(layer_2_plot) ' - vertices 1']) %#ok<*UNRCH>
@@ -164,24 +156,40 @@ for iSim = 1:nb_sim
     [~,P_w_2(iSim)] = ttest(weighted_mean_profiles(:,2), weighted_mean_profiles(:,3));
     
     
+    sim_profiles(iSim,:,1) = mean(mean_profiles);
+    sim_profiles(iSim,:,2) = mean(weighted_mean_profiles);
+    
 end
 
-%%
-figure('name', 'p curve', 'Position', [50 50 1200 600], 'Color', [1 1 1]);
+%% plot profiles over simulations
+figure('name', 'laminar profiles', 'position', [50 50 1200 600])
+subplot(1,2,1)
+plot_profile(sim_profiles(:,:,1),1)
+title('stim selectivity after selection: preferred - non-preferred')
 
+subplot(1,2,2)
+plot_profile(sim_profiles(:,:,2),1)
+title('stim selectivity after selection and weighting: preferred - non-preferred')
+
+print(gcf, fullfile(pwd, 'laminar_profiles.png'), '-dpng')
+
+
+figure('name', 'p curve', 'Position', [50 50 1200 600], 'Color', [1 1 1]);
 subplot(2,2,1)
 plot_p_curve(P_1)
-title('p-curve: paired t-test layer 1 & 2')
+title('selected: p-curve (paired t-test layer 1 & 2)')
 
 subplot(2,2,2)
 plot_p_curve(P_2)
-title('p-curve: paired t-test layer 2 & 3')
+title('selected: p-curve (paired t-test layer 2 & 3)')
 
 subplot(2,2,3)
 plot_p_curve(P_w_1)
-title('p-curve: weightedpaired t-test layer 1 & 2')
+title('selected+weighted: p-curve (paired t-test layer 1 & 2)')
 
 subplot(2,2,4)
 plot_p_curve(P_w_2)
-title('p-curve: paired t-test layer 2 & 3')
+title('selected+weighted: p-curve (paired t-test layer 2 & 3)')
 
+print(gcf, fullfile(pwd, 'p_curves.png'), '-dpng')
+        
