@@ -8,10 +8,10 @@ clc
 close all
 
 nb_layers = 3;
-nb_sess = 4;
-nb_subj = 21;
-nb_sim = 10;
-nb_vertices = 1000; % number of vertices in each group (preferring to respond to cdt 1 or 2)
+nb_sess = 6;
+nb_subj = 20;
+nb_sim = 20;
+nb_vertices = 750; % number of vertices in each group (preferring to respond to cdt 1 or 2)
 
 % for plotting
 plot_fig = 0;
@@ -104,6 +104,9 @@ for iSim = 1:nb_sim
         top_bottom_voxels(top_voxels) = 1;
         top_bottom_voxels(bottom_voxels) = -1;
         
+        top_bottom_voxel_per_layer(iSim,:,1) = nansum(top_bottom_voxels==1);
+        top_bottom_voxel_per_layer(iSim,:,2) = nansum(top_bottom_voxels==-1);
+        
         % create 2 arrays one keeping only the values of the top voxels,
         % the other of the bottom voxels (everything else is nan)
         act_top_voxels = nan(size(vert,1), nb_layers, nb_sess, 2);
@@ -191,7 +194,7 @@ subplot(1,3,3)
 plot_profile(sim_profiles(:,:,2),1)
 title(sprintf('stim selectivity after selection and weighting:\n preferred - non-preferred'))
 
-print(gcf, fullfile(pwd, 'laminar_profiles.png'), '-dpng')
+print(gcf, fullfile(pwd, 'voxel_laminar_profiles.png'), '-dpng')
 
 
 
@@ -212,5 +215,20 @@ subplot(2,2,4)
 plot_p_curve(P_w_2)
 title('selected+weighted: p-curve (paired t-test layer 2 & 3)')
 
-print(gcf, fullfile(pwd, 'p_curves.png'), '-dpng')
-        
+print(gcf, fullfile(pwd, 'voxel_p_curves.png'), '-dpng')
+
+
+
+figure('name', 'top - bottom voxel per layer', 'position', [50 50 1200 600])
+subplot(1,2,1)
+bar(mean(top_bottom_voxel_per_layer(:,:,1)))
+xlabel('layers (WM ---> CSF)')
+ylabel('number of top voxels')
+
+subplot(1,2,2)
+bar(mean(top_bottom_voxel_per_layer(:,:,2)))
+xlabel('layers (WM ---> CSF)')
+ylabel('number of bottom voxels')
+
+
+print(gcf, fullfile(pwd, 'voxel_selected_voxel_per_layer.png'), '-dpng')

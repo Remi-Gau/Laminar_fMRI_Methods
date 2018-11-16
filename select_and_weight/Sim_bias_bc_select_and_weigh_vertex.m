@@ -182,7 +182,7 @@ subplot(1,3,3)
 plot_profile(sim_profiles(:,:,2),1)
 title(sprintf('stim selectivity after selection and weighting:\n preferred - non-preferred'))
 
-print(gcf, fullfile(pwd, 'laminar_profiles.png'), '-dpng')
+print(gcf, fullfile(pwd, 'vertex_laminar_profiles.png'), '-dpng')
 
 
 
@@ -203,5 +203,5 @@ subplot(2,2,4)
 plot_p_curve(P_w_2)
 title('selected+weighted: p-curve (paired t-test layer 2 & 3)')
 
-print(gcf, fullfile(pwd, 'p_curves.png'), '-dpng')
+print(gcf, fullfile(pwd, 'vertex_p_curves.png'), '-dpng')
         
