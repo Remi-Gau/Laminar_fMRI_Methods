@@ -10,7 +10,7 @@ profiles_1 = vect_act(vect_id==1, :, :, 1) - ...
 
 profiles =  cat(1, profiles_1, profiles_2);
 
-mean_profiles = mean(mean(profiles,3)); % mean across sessions and vertices
+mean_profiles = nanmean(nanmean(profiles,3)); % mean across sessions and vertices
 
 if plot_fig
     figure('name', 'laminar profile')

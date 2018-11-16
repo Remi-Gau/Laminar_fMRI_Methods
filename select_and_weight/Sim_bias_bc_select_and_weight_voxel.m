@@ -1,4 +1,4 @@
-% check if selecting and weighting the vertices you use for your analyses
+% check if selecting and weighting the voxels you use for your analyses
 % biases the laminar profiles
 
 
@@ -10,7 +10,7 @@ close all
 nb_layers = 3;
 nb_sess = 4;
 nb_subj = 21;
-nb_sim = 1000;
+nb_sim = 10;
 nb_vertices = 1000; % number of vertices in each group (preferring to respond to cdt 1 or 2)
 
 % for plotting
@@ -31,7 +31,7 @@ vert_vect = [ones(nb_vertices, 1) ; 2*ones(nb_vertices, 1)];
 % Mu_cdt_1 = -1*(1:NbLayers)/NbLayers;
 % Mu_cdt_1 = [0.6970   0.6426   0.8655   1.1374   1.4821   1.8846]; % taken from empirical values
 mu_cdt_1 = [0.6970   1.0014   1.8846];
-mu_cdt_2 = mu_cdt_1 / 2 ;
+mu_cdt_2 = mu_cdt_1 / -1.5 ;
 
 % Covariance matrix across layers
 % A=[1 1.5 2 2 1.5 1];
@@ -56,7 +56,7 @@ for iSim = 1:nb_sim
         %% Generate data
         [vert_1, vert_2] = generate_data(nb_sess, mu_cdt_1, mu_cdt_2, sigma_noise, nb_vertices);
         
-
+        
         %% plot responses of one group of vertices to both stimuli
         if plot_fig
             figure('name', ['response layer ' num2str(layer_2_plot) ' - vertices 1']) %#ok<*UNRCH>
@@ -74,6 +74,8 @@ for iSim = 1:nb_sim
         con_vert_1 = diff(vert_1, 1, 4); % cdt 2 - cdt 1
         con_vert_2 = diff(vert_2, 1, 4);
         
+        ground_truth(iSim,:) = mean(mean([vert_1(:,:,:,1)-vert_1(:,:,:,2) ; con_vert_2], 3)); %#ok<*SAGROW>
+
         if plot_fig
             figure('name', ...
                 ['contrast response layer ' num2str(layer_2_plot) ' - vertices 1 & 2'])
@@ -89,21 +91,36 @@ for iSim = 1:nb_sim
         %% Select based on average across layers
         vert = [vert_1 ; vert_2]; % concat original response
         con_vert = [con_vert_1 ; con_vert_2]; % concat contrasts
+
+        tval_con_vert = mean(con_vert, 3) ./ (std(con_vert, 0, 3) / size(con_vert, 3)); % t-value across sessions
         
-        mean_layers = squeeze(mean(con_vert, 2)); % mean across layers
-        tval_con_vert = mean(mean_layers, 2) ./ (std(mean_layers, 0, 2) / size(mean_layers, 2)); % t-value across sessions
+        [sorted_tval,Idx] = sort(tval_con_vert(:));
+        top_voxels = Idx(top_perc);
+        bottom_voxels = Idx(bottom_perc);
+
+        % create a matrix that says if a voxel is top (+1) or bottom (-1)
+        % or neither (0)
+        top_bottom_voxels = zeros(size(tval_con_vert));
+        top_bottom_voxels(top_voxels) = 1;
+        top_bottom_voxels(bottom_voxels) = -1;
         
-        [sorted_tval,Idx] = sort(tval_con_vert);
-        sort_vert_vect = vert_vect(Idx);
-        sort_vert = vert(Idx, :, :, :);
+        % create 2 arrays one keeping only the values of the top voxels,
+        % the other of the bottom voxels (everything else is nan)
+        act_top_voxels = nan(size(vert,1), nb_layers, nb_sess, 2);
+        act_top_voxels(repmat(top_bottom_voxels==1,[1, 1, nb_sess, 2])) = ...
+            vert(repmat(top_bottom_voxels==1,[1, 1, nb_sess, 2]));
         
+        act_bottom_voxels = nan(size(vert,1), nb_layers, nb_sess, 2);
+        act_bottom_voxels(repmat(top_bottom_voxels==-1,[1, 1, nb_sess, 2])) = ...
+            vert(repmat(top_bottom_voxels==-1,[1, 1, nb_sess, 2]));
+               
         % only keep the top and bottom X percent
-        vert_vect_top_bottom = [sort_vert(top_perc,:,:,:) ; sort_vert(bottom_perc,:,:,:)];
-        sort_vert_vect_top_bottom = [sort_vert_vect(top_perc) ; sort_vert_vect(bottom_perc)];
+        act_top_bottom_voxels = [act_top_voxels ; act_bottom_voxels];
+        vert_vect_top_bottom = [vert_vect ; vert_vect];
         
         mean_profiles(iSubj,:) = compute_profile_plot(...
+            act_top_bottom_voxels, ...
             vert_vect_top_bottom, ...
-            sort_vert_vect_top_bottom, ...
             plot_fig);
         
         if plot_fig
@@ -113,16 +130,12 @@ for iSim = 1:nb_sim
         
         %% now add weighting factor and replot
         
-        weight_top_bottom = [sorted_tval(top_perc,:,:,:) ; sorted_tval(bottom_perc,:,:,:)];
-        nb_repeats = size(vert_vect_top_bottom);
-        
-        weight_top_bottom = repmat(weight_top_bottom, [1 nb_repeats(2:end)]); %weight by t-values
-        
-        weight_vert_vect_top_bottom = weight_top_bottom.*vert_vect_top_bottom;
-        
+        weighted_act_top_bottom_voxels = act_top_bottom_voxels.* ...
+            abs(repmat(tval_con_vert, [2,1, nb_sess, 2])); % weight by the unsign t-value
+
         weighted_mean_profiles(iSubj,:) = compute_profile_plot(...
-            weight_vert_vect_top_bottom, ...
-            sort_vert_vect_top_bottom, ...
+            weighted_act_top_bottom_voxels, ...
+            vert_vect_top_bottom, ...
             plot_fig);
         
         if plot_fig
@@ -162,16 +175,24 @@ for iSim = 1:nb_sim
 end
 
 %% plot profiles over simulations
-figure('name', 'laminar profiles', 'position', [50 50 1200 600])
-subplot(1,2,1)
-plot_profile(sim_profiles(:,:,1),1)
-title('stim selectivity after selection: preferred - non-preferred')
+close all
 
-subplot(1,2,2)
+figure('name', 'laminar profiles', 'position', [50 50 1200 600])
+
+subplot(1,3,1)
+plot_profile(ground_truth,1)
+title(sprintf('stim selectivity ground truth:\n preferred - non-preferred'))
+
+subplot(1,3,2)
+plot_profile(sim_profiles(:,:,1),1)
+title(sprintf('stim selectivity after selection:\n preferred - non-preferred'))
+
+subplot(1,3,3)
 plot_profile(sim_profiles(:,:,2),1)
-title('stim selectivity after selection and weighting: preferred - non-preferred')
+title(sprintf('stim selectivity after selection and weighting:\n preferred - non-preferred'))
 
 print(gcf, fullfile(pwd, 'laminar_profiles.png'), '-dpng')
+
 
 
 figure('name', 'p curve', 'Position', [50 50 1200 600], 'Color', [1 1 1]);
