@@ -1,2 +1,12 @@
 *.asv
-select_and_weight_vertices/*.asv
+*.mat
+*.nii
+
+*.fig
+*.png
+*.gif
+*.tif
+
+*.zip
+*.odp
+*.ppt
