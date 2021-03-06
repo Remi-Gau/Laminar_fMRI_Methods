@@ -1,3 +1,9 @@
+% simulate laminar data to see the effect of noise on the profile
+
+% TO DO
+% - need to add a cross validation option to see that the u-shaped effect then
+% disappears because it is due to double-dipping
+% - add a proper color scale
 clear 
 clc
 
@@ -6,20 +12,21 @@ NbLayers = 6;
 FileName = 'Sim_noise_midLayer_with_signal_5.gif';
 % FileName = 'Sim_noise_midLayer.gif';
 
+% Signal across layers
 % Mu = zeros(1,NbLayers);
 % Mu = -1*(1:NbLayers)/NbLayers;
-Mu = [-0.6970   -0.6426   -0.8655   -1.1374   -1.4821   -1.8846];
+Mu = [-0.6970   -0.6426   -0.8655   -1.1374   -1.4821   -1.8846]; % taken from empirical values
 
+% covariance matrix
 % A=[1 1.5 2 2 1.5 1];
 % Sigma_noise = A'*A;
-
 Sigma_noise = [...
     2.6485    1.9059    1.0569    0.5610    0.3431    0.3011;...
     1.9059    2.6827    2.1034    1.1775    0.5344    0.3486;...
     1.0569    2.1034    2.8142    2.2895    1.1996    0.5430;...
     0.5610    1.1775    2.2895    2.9694    2.3133    1.1270;...
     0.3431    0.5344    1.1996    2.3133    2.9294    2.1847;...
-    0.3011    0.3486    0.5430    1.1270    2.1847    3.0297];
+    0.3011    0.3486    0.5430    1.1270    2.1847    3.0297]; % taken from empirical values
 
 
 %% Generate data
@@ -32,7 +39,8 @@ for iLayer = 1:NbLayers % Averages over voxels of a given layer
 end
 
 
-%% GLM
+%% laminar GLM
+% design matrix of the laminar GLM
 DesMat = (1:NbLayers)-mean(1:NbLayers);
 DesMat = [ones(NbLayers,1) DesMat' (DesMat.^2)'];
 DesMat = spm_orth(DesMat);
@@ -49,13 +57,12 @@ B = pinv(X)*Y;
 %% Sort by the constant
 [~,I] = sort(B(1,:));
 
-Dist_sorted = Dist(I,:,:);
-
+Dist_sorted = Dist(I,:,:); 
 
 MeanProfiles = mean(Dist_sorted,3);
 
 
-%% Plot
+%% Plot an animated GIF
 close all
 
 % Color map
@@ -136,7 +143,7 @@ for n=1:nMax
         'ticklength', [0.01 0], 'fontsize', 10)
     
     
-    pause(0.2)
+    pause(0.2) % to have the time to save the figure
     
     frame = getframe(h);
     im = frame2im(frame);

@@ -1,10 +1,2 @@
-
-*.tif
-*.png
-*.odp
-*.gif
-*.ppt
-*.nii
-*.mat
-*.fig
-*.zip
+*.asv
+select_and_weight_vertices/*.asv

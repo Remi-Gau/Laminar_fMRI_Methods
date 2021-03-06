@@ -1,12 +1,16 @@
+% script that generates null data to check if the cst, lin and quad
+% component of the laminar GLM are on average equal to 0 and give a flat
+% p-curve
+
 clear; clc; close all
 
 Start_dir = fullfile('D:\Dropbox','PhD','Experiments','Laminar_fMRI_Methods');
 addpath(genpath(fullfile(Start_dir,'code')))
 Get_dependencies('D:\Dropbox/')
 
-IID = 1; %0
-Do_perm = 0;
-Do_Var_Expl = 0;
+IID = 1; % in case we want the data across layers to be iid or not
+Do_perm = 0; % perform t-test or sign permutation test
+Do_Var_Expl = 0; % compute percent variance explained
 
 NbLayers = 6;
 NbVertices = 1000; %5000
@@ -16,10 +20,11 @@ NbSess = 20;
 NbSim = 100000; %10000
 PrintOutEvery = 10^3;
 
-Mu = zeros(1,NbLayers);
+Mu = zeros(1,NbLayers); % mean value
 
 if ~IID
     NoiseSuffix = ' - layers not iid';
+    % covariance matrix to generate data: taken from real data
     Sigma_noise = [...
         2.6485    1.9059    1.0569    0.5610    0.3431    0.3011;...
         1.9059    2.6827    2.1034    1.1775    0.5344    0.3486;...
@@ -32,6 +37,7 @@ else
     NoiseSuffix = ' - layers iid';
 end
 
+% Design matrix to use for the laminar GLM
 DesMat = (1:NbLayers)-mean(1:NbLayers);
 DesMat = [ones(NbLayers,1) DesMat' (DesMat.^2)'];
 DesMat = spm_orth(DesMat);
