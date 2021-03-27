@@ -4,9 +4,9 @@
 
 clear; clc; close all
 
-Start_dir = fullfile('D:\Dropbox','PhD','Experiments','Laminar_fMRI_Methods');
-addpath(genpath(fullfile(Start_dir,'code')))
-Get_dependencies('D:\Dropbox/')
+% Start_dir = fullfile('D:\Dropbox','PhD','Experiments','Laminar_fMRI_Methods');
+% addpath(genpath(fullfile(Start_dir,'code')))
+% Get_dependencies('D:\Dropbox/')
 
 IID = 1; % in case we want the data across layers to be iid or not
 Do_perm = 0; % perform t-test or sign permutation test
@@ -17,7 +17,7 @@ NbVertices = 1000; %5000
 NbSubj = 10;
 NbSess = 20;
 
-NbSim = 100000; %10000
+NbSim = 1000; %10000
 PrintOutEvery = 10^3;
 
 Mu = zeros(1,NbLayers); % mean value

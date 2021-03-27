@@ -24,6 +24,8 @@ X = [x_V x_A x_H ones(length(x_V),1)];
 % Noise
 mu = 0; sigma = 1;
 
+nbSim = 10;
+
 Layer_scale_signal = [1 2 3]; % assume linear scaling similar to Makuerkiaga
 
 % scaling for ERRROR ??? do we know anything about this???
@@ -39,7 +41,7 @@ figure
 
 for i_layer_scale_error = 1 : size(Layer_scale_error,1)
     for b_num = 1 : size(b_stim_V,1)
-        for sim = 1 : 1000
+        for sim = 1 : nbSim
 
             for layer = 1 : NbLayers
 
